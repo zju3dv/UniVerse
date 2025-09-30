@@ -1,6 +1,6 @@
 # <img src="assets/icon.png" alt="UniVerse Icon" width="32" height="32"> UniVerse: Unleashing the Scene Prior of Video Diffusion Models for Robust Radiance Field Reconstruction
 
-This repository contains the code release for SIGGRAPH (TOG) 2024 paper: "Bilateral Guided Radiance Field Processing" by Yuehao Wang, Chaoyi Wang, Bingchen Gong, and Tianfan Xue.
+This repository contains the code release for ICCV 2025 paper: "UniVerse: Unleashing the Scene Prior of Video Diffusion Models for Robust Radiance Field Reconstruction" by Jin Cao, Hongrui Wu, Ziyong Feng, Hujun Bao, Xiaowei Zhou, Sida Peng
 
 **[Project Page](https://jin-cao-tma.github.io/UniVerse.github.io/) / [Arxiv](https://arxiv.org/abs/)**
 
