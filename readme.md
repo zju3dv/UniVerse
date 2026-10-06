@@ -69,30 +69,27 @@ pip install -r requirements.txt          # inference (includes xformers 0.0.16)
 pip install -r requirements-train.txt    # optional: training
 ```
 
-xformers (memory-efficient attention) is required for UniVerse-1024 on 48 GB GPUs; the memory figures
-below assume it.
+xformers provides memory-efficient attention; the memory figures below assume it.
 
 ## Checkpoints
 
-UniVerse is one video diffusion model, released at the end of each of its two training stages:
-
 | Model | Resolution | Training | Inference GPU memory | Checkpoint |
 |---|---|---|---|---|
-| UniVerse-1024 (default) | 576 x 1024 | stage 2, 12,000 iterations | ~28 GB | [`universe_1024.ckpt`](https://huggingface.co/TmaKiss/UniVerse/blob/main/universe_1024.ckpt) |
 | UniVerse-512 | 320 x 512 | stage 1, 14,520 iterations | ~14 GB | [`universe_512.ckpt`](https://huggingface.co/TmaKiss/UniVerse/blob/main/universe_512.ckpt) |
 
 The weights are hosted at [huggingface.co/TmaKiss/UniVerse](https://huggingface.co/TmaKiss/UniVerse).
-`inference.py` downloads the checkpoint of the selected model into `checkpoints/` on first use; to
-download them beforehand:
+`inference.py` downloads them into `checkpoints/` on first use; to download them beforehand:
 
 ```bash
-hf download TmaKiss/UniVerse universe_1024.ckpt universe_512.ckpt --local-dir checkpoints
+hf download TmaKiss/UniVerse universe_512.ckpt --local-dir checkpoints
 ```
 
-Each checkpoint (10.4 GB) contains all the weights, including the VAE and the OpenCLIP ViT-H/14
-encoders, so nothing else is downloaded.
+The checkpoint (10.4 GB) contains all the weights, including the VAE and the OpenCLIP ViT-H/14
+encoders, so nothing else is downloaded. The 576 x 1024 model of the second training stage is not
+released; `configs/inference_1024.yaml` (`--model 1024 --ckpt <checkpoint>`) runs a stage-2 model that
+you train yourself (see [Training](#training)).
 
-The models are fine-tuned from ViewCrafter's `ViewCrafter_25_sparse` (Apache-2.0), contain the
+The model is fine-tuned from ViewCrafter's `ViewCrafter_25_sparse` (Apache-2.0), contain the
 OpenCLIP ViT-H/14 weights trained on LAION-2B (MIT), and were trained on
 [DL3DV-10K](https://github.com/DL3DV-10K/Dataset), which is released for non-commercial use
 (CC BY-NC 4.0); please also respect the terms of these sources.
@@ -100,13 +97,11 @@ OpenCLIP ViT-H/14 weights trained on LAION-2B (MIT), and were trained on
 ## Quick start
 
 ```bash
-python inference.py --image_dir data/demo/images --out_dir output/demo                 # UniVerse-1024
-python inference.py --image_dir data/demo/images --out_dir output/demo_512 --model 512  # UniVerse-512
+python inference.py --image_dir data/demo/images --out_dir output/demo
 ```
 
 The first run downloads the checkpoint (10.4 GB). On one L40S, the demo (a single batch) then takes
-about 1.5 min with UniVerse-512 and about 4 min with UniVerse-1024, including about 0.5-2 min to load
-the model.
+about 1.5 min, including about 0.5-1 min to load the model.
 
 ## Restoring your own scene
 
@@ -139,7 +134,7 @@ Main options (`python inference.py -h` lists all of them):
 
 | Option | Default | Description |
 |---|---|---|
-| `--model {1024,512}` | `1024` | model preset (config, checkpoint and resolution) |
+| `--model {512,1024}` | `512` | model preset (config, checkpoint and resolution); 1024 needs your own `--ckpt` |
 | `--ckpt`, `--config` | from `--model` | checkpoint / config |
 | `--mask_dir` | `<scene>/masks` if it exists | inpainting masks |
 | `--colmap`, `--transforms`, `--no_poses` | `<scene>/sparse/0`, else `<scene>/transforms.json` | camera poses |
@@ -160,8 +155,8 @@ output/my_scene/
 └── videos/         # iterXX_{input,inpaint_mask,style_mask,restored}.mp4 for every batch
 ```
 
-The restored images have the model resolution (576 x 1024 or 320 x 512): each input is resized to
-cover it and center-cropped. To reconstruct the scene, run COLMAP again on the restored images, as in
+The restored images have the model resolution (320 x 512): each input is resized to cover it and
+center-cropped. To reconstruct the scene, run COLMAP again on the restored images, as in
 the paper, and train any NeRF or 3D Gaussian Splatting model on them (the paper uses Zip-NeRF with
 GLO).
 
@@ -176,7 +171,7 @@ synthetic fern scene these defaults were slightly more accurate and more consist
 authors' synthetic fern scene (not included; `scripts/synthesize_test_scene.py` builds similar scenes):
 
 ```bash
-python inference.py --image_dir <fern>/images --model 512 --split 14 --style_index 5 --notebook_compat \
+python inference.py --image_dir <fern>/images --split 14 --style_index 5 --notebook_compat \
     --out_dir output/fern_notebook
 ```
 

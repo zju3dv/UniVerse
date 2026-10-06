@@ -22,5 +22,5 @@ Pillow==9.4.0
 av==10.0.0
 tqdm==4.65.0
 PyYAML==6.0
-# memory-efficient attention: needed for UniVerse-1024 on 48 GB GPUs (and the memory figures in readme.md)
+# memory-efficient attention (the memory figures in readme.md assume it)
 xformers==0.0.16

@@ -59,9 +59,10 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp')
 DEFAULT_PROMPT = 'A consistent scene captured using a continuous camera trajectory'
 HF_REPO = 'TmaKiss/UniVerse'  # https://huggingface.co/TmaKiss/UniVerse
+# Only the stage-1 (320x512) model is released; the 576x1024 preset is for your own stage-2 checkpoints.
 MODEL_PRESETS = {
-    '512': dict(config='configs/inference_512.yaml', ckpt='checkpoints/universe_512.ckpt'),
-    '1024': dict(config='configs/inference_1024.yaml', ckpt='checkpoints/universe_1024.ckpt'),
+    '512': dict(config='configs/inference_512.yaml', ckpt='checkpoints/universe_512.ckpt', released=True),
+    '1024': dict(config='configs/inference_1024.yaml', ckpt='checkpoints/universe_1024.ckpt', released=False),
 }
 
 
@@ -739,8 +740,8 @@ def get_parser():
     parser.add_argument('--no_video', action='store_true',
                         help='Do not save the per-iteration videos and restored.mp4.')
     # model
-    parser.add_argument('--model', type=str, default='1024', choices=list(MODEL_PRESETS),
-                        help='576x1024 (stage 2, final) or 320x512 (stage 1, faster) model.')
+    parser.add_argument('--model', type=str, default='512', choices=list(MODEL_PRESETS),
+                        help='320x512 model (released), or 576x1024 for a stage-2 checkpoint you trained (--ckpt).')
     parser.add_argument('--config', type=str, default=None, help='Model config (default: from --model).')
     parser.add_argument('--ckpt', type=str, default=None, help='Model checkpoint (default: from --model).')
     parser.add_argument('--height', type=int, default=None, help='Default: from the config (multiple of 64).')
@@ -829,10 +830,13 @@ def main():
     try:
         import xformers  # noqa: F401
     except ImportError:
-        print('Warning: xformers is not installed; without memory-efficient attention UniVerse-1024 needs '
-              'more than 48 GB of GPU memory (pip install xformers==0.0.16).')
+        print('Warning: xformers is not installed; without memory-efficient attention UniVerse needs more GPU '
+              'memory (about 18 GB instead of 14 GB at 320x512; pip install xformers==0.0.16).')
 
     if not os.path.exists(opts.ckpt):  # released checkpoint, downloaded on first use
+        if not MODEL_PRESETS[opts.model]['released']:
+            raise FileNotFoundError(f'The {opts.model} model is not released: train it (see README, "Training") '
+                                    f'and pass its checkpoint with --ckpt.')
         opts.ckpt = download_checkpoint(opts.ckpt)
 
     os.makedirs(opts.out_dir, exist_ok=True)
