@@ -74,14 +74,23 @@ below assume it.
 
 ## Checkpoints
 
-| Model | Resolution | Training | Inference GPU memory | Path |
-|---|---|---|---|---|
-| UniVerse-1024 (default) | 576 x 1024 | stage 2, 12,000 iterations | ~28 GB | `checkpoints/universe_1024.ckpt` |
-| UniVerse-512 | 320 x 512 | stage 1, 14,520 iterations | ~14 GB | `checkpoints/universe_512.ckpt` |
+UniVerse is one video diffusion model, released at the end of each of its two training stages:
 
-Download links: *coming soon*. Put the files at the paths above (or pass `--ckpt`). Each checkpoint
-(10.4 GB) contains all the weights, including the OpenCLIP ViT-H/14 encoders, so nothing else is
-downloaded at inference time.
+| Model | Resolution | Training | Inference GPU memory | Checkpoint |
+|---|---|---|---|---|
+| UniVerse-1024 (default) | 576 x 1024 | stage 2, 12,000 iterations | ~28 GB | [`universe_1024.ckpt`](https://huggingface.co/TmaKiss/UniVerse/blob/main/universe_1024.ckpt) |
+| UniVerse-512 | 320 x 512 | stage 1, 14,520 iterations | ~14 GB | [`universe_512.ckpt`](https://huggingface.co/TmaKiss/UniVerse/blob/main/universe_512.ckpt) |
+
+The weights are hosted at [huggingface.co/TmaKiss/UniVerse](https://huggingface.co/TmaKiss/UniVerse).
+`inference.py` downloads the checkpoint of the selected model into `checkpoints/` on first use; to
+download them beforehand:
+
+```bash
+hf download TmaKiss/UniVerse universe_1024.ckpt universe_512.ckpt --local-dir checkpoints
+```
+
+Each checkpoint (10.4 GB) contains all the weights, including the VAE and the OpenCLIP ViT-H/14
+encoders, so nothing else is downloaded.
 
 The models are fine-tuned from ViewCrafter's `ViewCrafter_25_sparse` (Apache-2.0), contain the
 OpenCLIP ViT-H/14 weights trained on LAION-2B (MIT), and were trained on
@@ -95,8 +104,9 @@ python inference.py --image_dir data/demo/images --out_dir output/demo          
 python inference.py --image_dir data/demo/images --out_dir output/demo_512 --model 512  # UniVerse-512
 ```
 
-On one L40S, the demo (a single batch) takes about 1.5 min with UniVerse-512 and about 4 min with
-UniVerse-1024, including about 0.5-2 min to load the model.
+The first run downloads the checkpoint (10.4 GB). On one L40S, the demo (a single batch) then takes
+about 1.5 min with UniVerse-512 and about 4 min with UniVerse-1024, including about 0.5-2 min to load
+the model.
 
 ## Restoring your own scene
 
@@ -237,8 +247,11 @@ input frames by lambda = 0.99 (`consistency_lambda`).
    ```
    It writes 4 clips per scene (`--clips_per_scene`) at a random frame stride; re-running it only
    extracts new scenes, and `--num_shards`/`--shard_id` split the work across processes.
-2. **Initial weights.** Put `ViewCrafter_25_sparse`'s `model_sparse.ckpt` at `checkpoints/model_sparse.ckpt`
-   (stage 2 starts from `checkpoints/universe_512.ckpt`).
+2. **Initial weights.** Stage 1 starts from `ViewCrafter_25_sparse`, stage 2 from UniVerse-512:
+   ```bash
+   hf download Drexubery/ViewCrafter_25_sparse model_sparse.ckpt --local-dir checkpoints
+   hf download TmaKiss/UniVerse universe_512.ckpt --local-dir checkpoints
+   ```
 3. **Train** (single node; usage `bash scripts/train.sh <512|1024> [num_gpus: 1, 2, 4 or 8] [key=value ...]`,
    gradient accumulation keeps the global batch at 8):
    ```bash

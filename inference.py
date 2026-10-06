@@ -58,6 +58,7 @@ NUM_FRAMES = 25
 ROOT = os.path.dirname(os.path.abspath(__file__))
 IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp')
 DEFAULT_PROMPT = 'A consistent scene captured using a continuous camera trajectory'
+HF_REPO = 'TmaKiss/UniVerse'  # https://huggingface.co/TmaKiss/UniVerse
 MODEL_PRESETS = {
     '512': dict(config='configs/inference_512.yaml', ckpt='checkpoints/universe_512.ckpt'),
     '1024': dict(config='configs/inference_1024.yaml', ckpt='checkpoints/universe_1024.ckpt'),
@@ -779,6 +780,18 @@ def resolve_model_args(opts):
     return opts
 
 
+def download_checkpoint(path):
+    """Download a released checkpoint from the Hugging Face Hub to ``path`` (in checkpoints/)."""
+    from huggingface_hub import hf_hub_download
+    filename = os.path.basename(path)
+    print(f'Downloading {filename} (10.4 GB) from https://huggingface.co/{HF_REPO} to {os.path.dirname(path)} ...')
+    try:
+        return hf_hub_download(HF_REPO, filename, local_dir=os.path.dirname(path))
+    except Exception as e:
+        raise RuntimeError(f'Could not download {filename} from https://huggingface.co/{HF_REPO}: {e}. '
+                           f'Download it manually to {path} (see README, "Checkpoints").') from e
+
+
 def find_style_index(views, style_image):
     """Index (in trajectory order) of the view named ``style_image`` (full name or unique file name)."""
     names = [name for _, name in views]
@@ -791,8 +804,10 @@ def find_style_index(views, style_image):
 
 
 def main():
-    opts = resolve_model_args(get_parser().parse_args())
-    if not os.path.exists(opts.ckpt):
+    opts = get_parser().parse_args()
+    ckpt_given = opts.ckpt is not None
+    opts = resolve_model_args(opts)
+    if ckpt_given and not os.path.exists(opts.ckpt):
         raise FileNotFoundError(f'Checkpoint not found: {opts.ckpt} (see README, "Checkpoints")')
     views, distances, mask_dir = prepare_scene(opts.image_dir, opts.mask_dir, opts.colmap, opts.transforms,
                                                opts.no_poses)
@@ -816,6 +831,9 @@ def main():
     except ImportError:
         print('Warning: xformers is not installed; without memory-efficient attention UniVerse-1024 needs '
               'more than 48 GB of GPU memory (pip install xformers==0.0.16).')
+
+    if not os.path.exists(opts.ckpt):  # released checkpoint, downloaded on first use
+        opts.ckpt = download_checkpoint(opts.ckpt)
 
     os.makedirs(opts.out_dir, exist_ok=True)
     with open(os.path.join(opts.out_dir, 'args.json'), 'w') as f:
