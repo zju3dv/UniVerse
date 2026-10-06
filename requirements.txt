@@ -1,0 +1,26 @@
+# Inference. Tested with Python 3.9 and CUDA 11.7; install PyTorch first:
+#   pip install torch==1.13.1 torchvision==0.14.1 --extra-index-url https://download.pytorch.org/whl/cu117
+torch==1.13.1
+torchvision==0.14.1
+pytorch-lightning==1.9.3
+torchmetrics==1.5.2
+lightning-utilities==0.15.2
+setuptools<82  # pytorch-lightning 1.9 imports pkg_resources
+open-clip-torch==2.17.1
+timm==0.6.13
+protobuf==3.20.3
+transformers==4.28.1
+tokenizers==0.13.3
+huggingface-hub==0.35.1
+kornia==0.8.1
+einops==0.6.1
+omegaconf==2.3.0
+numpy==1.23.5
+scipy==1.13.1
+opencv-python==4.7.0.72
+Pillow==9.4.0
+av==10.0.0
+tqdm==4.65.0
+PyYAML==6.0
+# memory-efficient attention: needed for UniVerse-1024 on 48 GB GPUs (and the memory figures in readme.md)
+xformers==0.0.16

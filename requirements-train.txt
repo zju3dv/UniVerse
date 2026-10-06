@@ -1,0 +1,7 @@
+# Training (in addition to requirements.txt)
+-r requirements.txt
+decord==0.6.0
+tensorboard==2.12.2
+moviepy==1.0.3
+imageio==2.27.0
+imageio-ffmpeg==0.4.8

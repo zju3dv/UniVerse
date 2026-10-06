@@ -1,0 +1,184 @@
+# UniVerse training, stage 1: 320x512, initialised from ViewCrafter_25_sparse
+# (https://huggingface.co/Drexubery/ViewCrafter_25_sparse, model_sparse.ckpt). Its 8-channel U-Net
+# input conv is expanded to 10 channels (the 2 mask channels start at zero).
+# Paper: 14,520 iterations, global batch 8 (8 GPUs x 1), lr 5e-5.
+# Launch from the repo root: bash scripts/train.sh 512 <num_gpus> [key=value overrides]
+model:
+  pretrained_checkpoint: checkpoints/model_sparse.ckpt
+  base_learning_rate: 5.0e-05  # paper value; the research config of this stage said 1.0e-05
+  scale_lr: False
+  target: lvdm.models.ddpm3d.ConsistentVLDM
+  params:
+    rescale_betas_zero_snr: True
+    parameterization: "v"
+    linear_start: 0.00085
+    linear_end: 0.012
+    num_timesteps_cond: 1
+    log_every_t: 200
+    timesteps: 1000
+    first_stage_key: video
+    cond_stage_key: caption
+    cond_stage_trainable: False
+    image_proj_model_trainable: True
+    conditioning_key: hybrid
+    image_size: [40, 64]  # latent size, 320x512 / 8
+    channels: 4
+    scale_by_std: False
+    scale_factor: 0.18215
+    use_ema: False
+    uncond_prob: 0.0
+    uncond_type: 'empty_seq'
+    rand_cond_frame: true
+    use_dynamic_rescale: true
+    # The `scale_arr` buffer loaded from the initial checkpoint (built with 0.7) overrides this value.
+    base_scale: 0.7
+    fps_condition_type: 'fps'
+    perframe_ae: True
+    # Consistency loss: the N input frames carry max(lambda, N/25) of the loss, the generated frames
+    # the rest. 0.99 trained the released stage-2 weights; the paper text says 0.98.
+    consistency_lambda: 0.99
+
+    unet_config:
+      target: lvdm.modules.networks.openaimodel3d.UNetModel
+      params:
+        in_channels: 10  # 4 noisy latents + 4 initial-video latents + inpainting mask + style mask
+        out_channels: 4
+        model_channels: 320
+        attention_resolutions:
+        - 4
+        - 2
+        - 1
+        num_res_blocks: 2
+        channel_mult:
+        - 1
+        - 2
+        - 4
+        - 4
+        dropout: 0.1
+        num_head_channels: 64
+        transformer_depth: 1
+        context_dim: 1024
+        use_linear: true
+        use_checkpoint: True
+        temporal_conv: True
+        temporal_attention: True
+        temporal_selfatt_only: true
+        use_relative_position: false
+        use_causal_attention: False
+        temporal_length: 25
+        addition_attention: true
+        image_cross_attention: true
+        default_fs: 10
+        fs_condition: true
+
+    first_stage_config:
+      target: lvdm.models.autoencoder.AutoencoderKL
+      params:
+        embed_dim: 4
+        monitor: val/rec_loss
+        ddconfig:
+          double_z: True
+          z_channels: 4
+          resolution: 256
+          in_channels: 3
+          out_ch: 3
+          ch: 128
+          ch_mult:
+          - 1
+          - 2
+          - 4
+          - 4
+          num_res_blocks: 2
+          attn_resolutions: []
+          dropout: 0.0
+        lossconfig:
+          target: torch.nn.Identity
+
+    # OpenCLIP ViT-H-14 text/image towers (frozen). `version: null` skips downloading the LAION
+    # weights: they are loaded from the initial checkpoint.
+    cond_stage_config:
+      target: lvdm.modules.encoders.condition.FrozenOpenCLIPEmbedder
+      params:
+        version: null
+        freeze: true
+        layer: "penultimate"
+
+    img_cond_stage_config:
+      target: lvdm.modules.encoders.condition.FrozenOpenCLIPImageEmbedderV2
+      params:
+        version: null
+        freeze: true
+
+    # Multi-input Query Transformer (MiQT): CLIP tokens of all input frames -> 256 query tokens.
+    image_proj_stage_config:
+      target: lvdm.modules.encoders.multi_resampler.Resampler
+      params:
+        dim: 1024
+        depth: 4
+        dim_head: 64
+        heads: 12
+        num_queries: 16
+        embedding_dim: 1280
+        output_dim: 1024
+        ff_mult: 4
+        video_length: 16
+
+data:
+  target: utils_data.DataModuleFromConfig
+  params:
+    batch_size: 1
+    num_workers: 8
+    wrap: false
+    train:
+      target: lvdm.data.universe_dataset.UniVerseDataset
+      params:
+        data_dir: data/train  # contains clean_h/*.mp4 (scripts/prepare_dl3dv_clips.py)
+        mask_dirs:  # occluder masks
+        - data/occluders/VOC2007/SegmentationClass
+        video_length: 25
+        resolution: [320, 512]
+        spatial_transform: resize_center_crop
+        repeat: 2
+
+lightning:
+  precision: 16
+  # Plain DDP. Per GPU, stage 1 (320x512) peaks at ~42 GB allocated / 45 GB reserved (just fits a
+  # 48 GB L40S) and stage 2 (576x1024) needs 80 GB GPUs. The research runs used `ddp_sharded`
+  # (fairscale, shards the optimizer state across GPUs) on 80 GB A100s: pass
+  # `lightning.strategy=ddp_sharded` after `pip install fairscale` (untested in this release).
+  strategy: ddp
+  trainer:
+    num_nodes: 1
+    devices: 8
+    benchmark: True
+    accumulate_grad_batches: 1  # global batch = devices x batch_size x accumulate_grad_batches = 8
+    max_epochs: -1  # stop at max_steps, whatever the dataset size
+    max_steps: 14520
+    log_every_n_steps: 50
+    val_check_interval: 0.5
+    gradient_clip_algorithm: 'norm'
+    gradient_clip_val: 0.5
+  callbacks:
+    model_checkpoint:
+      target: pytorch_lightning.callbacks.ModelCheckpoint
+      params:
+        save_weights_only: True
+        filename: "{epoch}-{step}"
+        every_n_train_steps: 726
+    metrics_over_trainsteps_checkpoint:
+      target: pytorch_lightning.callbacks.ModelCheckpoint
+      params:
+        filename: '{epoch}-{step}'
+        save_weights_only: True
+        every_n_train_steps: 10000
+    batch_logger:
+      target: callbacks.ImageLogger
+      params:
+        batch_frequency: 300
+        to_local: False
+        max_images: 25
+        log_images_kwargs:
+          ddim_steps: 50
+          unconditional_guidance_scale: 7.5
+          timestep_spacing: uniform_trailing
+          guidance_rescale: 0.7

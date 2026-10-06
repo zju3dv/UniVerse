@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.ruff_cache/
+
+# outputs
+output/
+save_dir/
+logs/
+
+# weights and training data
+checkpoints/*
+!checkpoints/.gitkeep
+data/train/
+data/occluders/
+
+# Grounded-SAM checkout used by scripts/generate_masks.py
+Grounded-Segment-Anything/
